@@ -1,0 +1,22 @@
+build:android --crosstool_top=@androidndk//:default_crosstool
+build:android --host_crosstool_top=@bazel_tools//tools/cpp:toolchain
+
+# Configurations for Android supported ABIs
+# https://developer.android.com/ndk/guides/abis
+# Example use: bazel build --config=android_arm64
+
+# arm 32 bit
+build:android_arm --config=android
+build:android_arm --cpu=armeabi-v7a
+
+# arm 64 bit
+build:android_arm64 --config=android
+build:android_arm64 --cpu=arm64-v8a #AArch64
+
+# x86
+build:android_x86 --config=android
+build:android_x86 --cpu=x86
+
+# x86_64
+build:android_x86_64 --config=android
+build:android_x86_64 --cpu=x86_64
