@@ -1,6 +1,6 @@
 # blockevent for Android
 
-[![release](https://github.com/nmelihsensoy/blockevent/actions/workflows/main.yml/badge.svg)](https://github.com/nmelihsensoy/curly-octo-adventure/actions?query=workflow%3Arelease)
+[![release](https://github.com/nmelihsensoy/blockevent/actions/workflows/main.yml/badge.svg)](https://github.com/nmelihsensoy/blockevent/actions?query=workflow%3Arelease)
 [![Release](https://img.shields.io/github/v/release/nmelihsensoy/blockevent?display_name=tag&sort=semver)](https://github.com/nmelihsensoy/blockevent/releases/latest)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
@@ -83,7 +83,7 @@ Using the `release.sh` script:
 > export ANDROID_NDK_HOME=/YOUR/NDK/PATH
 > ./release.sh
 
-4 build complete successfully (Total: 4)
+4 build completed successfully (Total: 4)
 releases/blockevent_arm: ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), dynamically linked, interpreter /system/bin/linker, with debug_info, not stripped
 ...
 ```
