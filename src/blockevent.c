@@ -23,10 +23,16 @@ limitations under the License.
 #include <fcntl.h> //open
 #include <linux/input.h> //ioctl, EVIOCGRAB, EVIOCGNAME
 #include <signal.h> //raise
+#include <stdint.h> //uint8_t
 
 #define VERSION_MAJOR "0"
 #define VERSION_MINOR "1"
 #define VERSION_PATCH "0"
+
+#define test_bit(bit, array) (array[bit / 8] & (1 << (bit % 8)))
+
+/* Fix for EV_MAX. [EV_MAX/8 + 1] gives 'stack corruption-smashing detected' error. Macro kept for case of EV_MAX use. */
+#define fix_max(max) ((max/(sizeof(long)*8)+1)*sizeof(long))
 
 static void usage(char *name)
 {
@@ -46,6 +52,8 @@ int main(int argc, char *argv[])
     short bg_switch = 0;
     const char *device = NULL;
     char input_name[80] = "Unknown";
+    uint8_t abs_mask[ABS_MAX/8 + 1];
+    uint8_t key_mask[KEY_MAX/8 + 1];
 
     opterr = 0;
     do{
@@ -66,18 +74,18 @@ int main(int argc, char *argv[])
             usage(argv[0]);
             exit(1);
         }
-    }while(1);
-    /* getting device name without using any option. */
+    }while (1);
+    /* Getting device name without using any option. */
     if (optind + 1 == argc){
         device = argv[optind];
         optind++;
     }
-    /* accepting only one device name. */
+    /* Accepting only one device name. */
     if (optind != argc){
         usage(argv[0]);
         exit(1);
     }
-    /* device name check. */
+    /* Empty device name check. */
     if (device == NULL){
         usage(argv[0]);
         exit(1);
@@ -85,29 +93,49 @@ int main(int argc, char *argv[])
 
     touch_fd = open(device, O_RDONLY | O_NONBLOCK);
 	
-	if(touch_fd == -1){
-		printf("failed to open '%s'", device);
+	if (touch_fd == -1){
+		fprintf(stderr, "failed to open '%s'", device);
 		exit(1);
 	}
-	
+
+    /* 
+        I followed here to get capabilities of devices.
+        https://www.linuxjournal.com/article/6429
+
+        I followed here to classify devices with using their capabilities.
+        https://source.android.com/devices/input/touch-devices
+
+     */
+    ioctl(touch_fd, EVIOCGBIT(EV_KEY, sizeof(key_mask)), key_mask);
+    ioctl(touch_fd, EVIOCGBIT(EV_ABS, sizeof(abs_mask)), abs_mask);
+    if (test_bit(BTN_TOUCH, key_mask)){
+        if ((test_bit(ABS_MT_POSITION_X, abs_mask) && test_bit(ABS_MT_POSITION_Y, abs_mask)) 
+            || (test_bit(ABS_X, abs_mask) && test_bit(ABS_Y, abs_mask))){
+                printf("Touch device detected\n");
+        }
+    } 
+
 	ioctl(touch_fd, EVIOCGNAME(sizeof(input_name)), input_name);
-	//i couldn't get any stdout with printf.
-	fprintf(stderr, "getting exclusive access for: %s", input_name);	
+	printf("getting exclusive access for: %s", input_name);	
     
-    if(ioctl(touch_fd, EVIOCGRAB, 1) < 0){
-        printf("couldn't get exclusive access for: %s", input_name);
+    /* Grabbing */
+    if (ioctl(touch_fd, EVIOCGRAB, 1) < 0){
+        fprintf(stderr, "couldn't get exclusive access for: %s", input_name);
         close(touch_fd);
         exit(1);
     }
 
-    if(bg_switch == 0){
+    /* Waiting for a signal. */
+    if (bg_switch == 0){
         pause();
     }
 
-    if(bg_switch == 1){
+    /* Changing itself to a bg process. */
+    if (bg_switch == 1){
         raise(SIGTSTP);
     }
     
+    /* Releasing */
     ioctl(touch_fd, EVIOCGRAB, 0);
     close(touch_fd);
 
