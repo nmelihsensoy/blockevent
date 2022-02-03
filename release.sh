@@ -37,7 +37,7 @@ for app in ${apps[@]}; do
         bazel "${bazel_flags[@]}${arch}"
         [[ $? -ne 0 ]] && continue
         mkdir -p "${out_dir}" && cp -f "${bin_dir}/${app%%:*}/${app##*:}" "${out_dir}/${output_filename}"
-        [[ $? -eq 0 ]] || >&2 echo "Build complete successfully. Error occured when copying: '${output_filename}'" 
+        [[ $? -eq 0 ]] || >&2 echo "Build completed successfully. Error occured when copying: '${output_filename}'" 
         echo "`sha256sum ${out_dir}/${output_filename} | cut -d " " -f1` ${output_filename}" >> \
             "${out_dir}/checksums${version}.txt"
         

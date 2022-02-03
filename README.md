@@ -29,14 +29,15 @@ Can be used:
 ## Usage
 
 ```
-Usage: blockevent [-b] [input device]
-                : run as normal. To stop use 'CTRL+C' or 'pkill -2 blockevent'
-              -b: run as a background job. To stop use 'kill "%$(pgrep blockevent)"'
-              -h: print help.
-    input device: '/dev/input/eventX' find X with using getevent tool.
+Usage: blockevent [-b] [-t] [-d input device]
+      : run as normal. To stop use 'CTRL+C' or 'pkill -2 blockevent'
+    -b: run as a background job. To stop use 'kill "%$(pgrep blockevent)"'
+    -t: block touch screen.
+    -d: block input device.'/dev/input/eventX'. Use 'getevent' to find eventX.
+    -h: print help.
 ```
 
-Get your executable binary from [Releases](https://github.com/nmelihsensoy/blockevent/releases) or build yourself then follow the commands.
+Get your executable binary from [Releases](https://github.com/nmelihsensoy/blockevent/releases) or [build](#build) yourself then follow the commands.
 
 Running on device :
 
@@ -55,7 +56,13 @@ adb shell su -c "chmod +x /data/local/tmp/blockevent_xxx"
 adb shell su -c /data/local/tmp/blockevent_xxx
 ```
 
-Example usage :
+Blocking touch screen :
+
+```
+> ./data/local/tmp/blockevent_xxx -t
+```
+
+Blocking other devices :
 
 ```console
 > getevent -lp
@@ -63,7 +70,7 @@ add device 3: /dev/input/event6
   name:     "atoll-wcd937x-snd-card Headset Jack"
   ...
 
-> ./data/local/tmp/blockevent_xxx /dev/input/event6
+> ./data/local/tmp/blockevent_xxx -d /dev/input/event6
 ```
 
 ## Build
@@ -97,7 +104,7 @@ bazel build //src:blockevent --config=TARGET
 ## TODO
 
 - [ ] Add specific event trigger option to stop blocking
-- [ ] Add touch device classifier to able to block touchscreen without getting device from the user.
+- [x] Add touch device classifier to able to block touchscreen without getting device from the user.
 - [ ] Add option to block multiple devices at the same time.
 - [ ] Add installation script
 - [ ] Add option to block only specific part of touchscreen 
