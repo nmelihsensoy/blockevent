@@ -8,11 +8,11 @@
 
 <img align="left" src="diagram.svg">
 
-`blockevent` runs on the `user space` similarly to [`getevent`](https://source.android.com/devices/input/getevent) tool.
+`blockevent` runs on the `user space` similarly to [`getevent`](https://source.android.com/devices/input/getevent) tool. Offers 2 appliable concepts for input devices.
 
-It grabs exclusive input handle with using [`EVIOCGRAB`](https://github.com/torvalds/linux/blob/5bfc75d92efd494db37f5c4c173d3639d4772966/include/uapi/linux/input.h#L183) control for input devices in the `/dev/input/` to block [`input_event`](https://github.com/torvalds/linux/blob/169387e2aa291a4e3cb856053730fe99d6cec06f/include/uapi/linux/input.h#L28) flow to Android Platform's [`EventHub`](https://cs.android.com/android/platform/superproject/+/master:frameworks/native/services/inputflinger/reader/EventHub.cpp;l=672?q=EventHub&ss=android%2Fplatform%2Fsuperproject).
+Grabs exclusive input handle with using [`EVIOCGRAB`](https://github.com/torvalds/linux/blob/5bfc75d92efd494db37f5c4c173d3639d4772966/include/uapi/linux/input.h#L183) control for input devices in the `/dev/input/` to block [`input_event`](https://github.com/torvalds/linux/blob/169387e2aa291a4e3cb856053730fe99d6cec06f/include/uapi/linux/input.h#L28) flow to Android Platform's [`EventHub`](https://cs.android.com/android/platform/superproject/+/master:frameworks/native/services/inputflinger/reader/EventHub.cpp;l=672?q=EventHub&ss=android%2Fplatform%2Fsuperproject). (Block concept)
 
-Then releases the devices when specified `input_event` is received from any device or [`SIGINT`](https://en.wikipedia.org/wiki/Signal_(IPC)#SIGINT) signal sent by its terminal.
+Then releases the devices when specified `input_event` is received from any device(Stop trigger concept) or [`SIGINT`](https://en.wikipedia.org/wiki/Signal_(IPC)#SIGINT) signal sent by its terminal.(Ctrl+C)
 
 <br clear="left"/>
 
@@ -22,18 +22,18 @@ Can be used:
 
 - To keep using devices that has faulty touch screen(especially ghost touch), buttons or headphone jack without modifying the kernel or disassembly any hardware.
 
-- For the applications needing to temporarily block of touch screen such as video players, child locks, drawing tracers.
+- For the applications needing to temporarily block of touch screen such as video players, child locks, drawing tracers, ebook readers.
 
 - For the applications needing to permanently block of touch screen like turning device into display.
 
 ## Usage
 
 ```
-Usage: blockevent [-b] [-t] [-d input device]
-      : run as normal. To stop use 'CTRL+C' or 'pkill -2 blockevent'
-    -b: run as a background job. To stop use 'kill "%$(pgrep blockevent)"'
+Usage: ./blockevent [-t] [-d input device] [-s trigger] [-v level]
     -t: block touch screen.
-    -d: block input device.'/dev/input/eventX'. Use 'getevent' to find eventX.
+    -d: block input device.Format:'/dev/input/eventX'. Use 'getevent' to find eventX.
+    -s: stop trigger (Volume Down='v_dwn', Volume Up='v_up')
+    -v: verbosity level (Errors=1, None=2, All=4)
     -h: print help.
 ```
 
@@ -42,7 +42,7 @@ Get your executable binary from [Releases](https://github.com/nmelihsensoy/block
 Running on device :
 
 ```
-su # or tsu
+su # tsu for Termux
 cp blockevent_xxx /data/local/tmp/
 chmod +x /data/local/tmp/blockevent_xxx
 ./data/local/tmp/blockevent_xxx
@@ -56,13 +56,23 @@ adb shell su -c "chmod +x /data/local/tmp/blockevent_xxx"
 adb shell su -c /data/local/tmp/blockevent_xxx
 ```
 
-Blocking touch screen :
+Block touch screen (Block concept) :
 
 ```
 > ./data/local/tmp/blockevent_xxx -t
+# Print all messages.
+> ./data/local/tmp/blockevent_xxx -t -v 4
 ```
 
-Blocking other devices :
+Block touch screen until volume down button is pressed (Stop trigger concept) :
+
+```
+> ./data/local/tmp/blockevent_xxx -t -s v_dwn
+# Print errors.
+> ./data/local/tmp/blockevent_xxx -t -s v_dwn -v 1
+```
+
+Block other devices :
 
 ```console
 > getevent -lp
@@ -103,7 +113,7 @@ bazel build //src:blockevent --config=TARGET
 
 ## TODO
 
-- [ ] Add specific event trigger option to stop blocking
+- [x] Add specific event trigger option to stop blocking
 - [x] Add touch device classifier to able to block touchscreen without getting device from the user.
 - [ ] Add option to block multiple devices at the same time.
 - [ ] Add installation script
