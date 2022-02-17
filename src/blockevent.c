@@ -173,6 +173,7 @@ static int scan_devices(uint8_t classes, uint8_t print_flags)
             temp &= temp - 1; //See brian kernighan's bit counting algorithm.
         if (temp == 0) break;
     }
+    closedir(dir);
     free(devname);
     return 0;
 }
