@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
 
     if (argc < 2) {
         usage(argv[0]);
-        exit(1);
+        return 1;
     }
 
     if ((print_flags & PRINT_ISSET) == 0)
@@ -287,12 +287,18 @@ int main(int argc, char *argv[])
     }
 
     blocking_device = dev_ids[blocking_device];
-
+    
     if (print_flags & PRINT_ALL){
-        fprintf(stderr, "Stored device count: %d\n", nfds);
+        fprintf(stderr, "Found device: %d\n", nfds);
         fprintf(stderr, "Blocking...\n");
     }
-            
+    
+    if (&pfds[blocking_device] == NULL){
+        if (print_flags & (PRINT_ERR | PRINT_ALL))
+                fprintf(stderr, "No device found to block. Exit.\n");
+        return 1;
+    }
+
     if (ioctl(pfds[blocking_device].fd, EVIOCGRAB, 1) < 0){
         if (print_flags & (PRINT_ERR | PRINT_ALL))
                 fprintf(stderr, "Couldn't get exclusive access.Blocking aborted.\n");
