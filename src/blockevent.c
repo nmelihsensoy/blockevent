@@ -1,5 +1,5 @@
 /*
-blockevent.c - blockevent for Android v0.3.0
+blockevent.c - blockevent for Android v0.4.0
 
 Copyright 2022 N. Melih Sensoy
 
@@ -27,17 +27,16 @@ limitations under the License.
 #include <dirent.h>
 #include <string.h>
 #include <sys/poll.h>
+#include <stdbool.h>
 
 #define VERSION_MAJOR "0"
-#define VERSION_MINOR "3"
+#define VERSION_MINOR "4"
 #define VERSION_PATCH "0"
-
-#define test_bit(bit, array) (array[bit / 8] & (1 << (bit % 8)))
 
 #define DEV_DIR "/dev/input"
 
 static int nfds;
-static int dev_ids[4];
+static int dev_ids[2];
 static struct pollfd *pfds;
 
 volatile sig_atomic_t e_flag = 0;
@@ -48,38 +47,71 @@ enum {
     DEV_VOLUP            = 1U << 1,
     DEV_VOLDOWN          = 1U << 2,
     DEV_ANY              = 1U << 3,
-    ID_TOUCHSCREEN       = 0,
-    ID_VOLDOWN           = 1,
-    ID_VOLUP             = 2,
-    ID_ANY               = 3
+    DEV_POWERBTN         = 1U << 4,
+    DEV_BLOCKING         = 1U << 5,
+    DEV_TRIGGER          = 1U << 6,
+    ID_BLOCKING          = 0,  
+    ID_TRIGGER           = 1,
 };
 
 enum {
     ST_SCAN              = 1U << 0,
     ST_TRIGGER           = 1U << 1,
+    ST_CUSTOM_TRIGGER    = 1U << 2,
     PRINT_ERR            = 1U << 0,
     PRINT_NONE           = 1U << 1,
     PRINT_ALL            = 1U << 2,
     PRINT_ISSET          = 1U << 3,
 };
 
+static inline bool test__bit(unsigned bit, unsigned char *array)
+{
+  return array[bit / 8] & (1 << (bit % 8));
+}
+
+static inline void print_err(const char *format, const char *text, 
+    int number, uint8_t flags)
+{
+    if (flags & (PRINT_ERR | PRINT_ALL))
+        text != NULL ? fprintf(stderr, format, text) : fprintf(stderr, format, number);
+}
+
+static inline void print_all(const char *format, const char *text, 
+    int number, uint8_t flags)
+{
+    if (flags & PRINT_ALL)
+        text != NULL ? fprintf(stderr, format, text) : fprintf(stderr, format, number);     
+}
+
+static inline void print_event(struct input_event *ev, int dev_id)
+{
+    fprintf(stderr, "Dev: [%d] Event: Type[%d] Code[%d] Value[%d]\n", 
+        dev_id, ev->type, ev->code, ev->value);
+}
+
 static int open_device(const char *device, uint8_t classes, uint8_t print_flags)
 {
     int fd;
-    uint8_t abs_mask[ABS_MAX/8 + 1];
-    uint8_t key_mask[KEY_MAX/8 + 1];
+    uint8_t abs_mask[ABS_CNT / 8];
+    uint8_t key_mask[KEY_CNT / 8 ];
+    uint8_t prop_mask[INPUT_PROP_CNT / 8];
     uint8_t is_recognized = 0;
 
+    print_all("'%s': device opening...\n", device, 0, print_flags);
     fd = open(device, O_RDONLY | O_NONBLOCK);
     if(fd < 0) {
-        if (print_flags & (PRINT_ERR | PRINT_ALL))
-            fprintf(stderr, "Couldn't open '%s'.\n", device);
+        print_err("Couldn't open '%s'.\n", device, 0, print_flags);
         return -1;
     }
 
     ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(abs_mask)), abs_mask);
     ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(key_mask)), key_mask);
+    ioctl(fd, EVIOCGPROP(sizeof(prop_mask)), prop_mask);
     
+    if ((is_recognized == 0) && classes & DEV_ANY){
+        print_all("'DEV_ANY' detected.\n", NULL, 0, print_flags);
+        is_recognized |= 1;
+    }
     /*
     I followed here to get capabilities of devices.
     https://www.linuxjournal.com/article/6429
@@ -87,46 +119,44 @@ static int open_device(const char *device, uint8_t classes, uint8_t print_flags)
     I followed here to classify devices with using their capabilities.
     https://source.android.com/devices/input/touch-devices
     */
-    if (classes & DEV_TOUCHSCREEN){
-        if ((test_bit(ABS_MT_POSITION_X, abs_mask) && test_bit(ABS_MT_POSITION_Y, abs_mask)) 
-            || (test_bit(ABS_X, abs_mask) && test_bit(ABS_Y, abs_mask))){
-                if (test_bit(BTN_TOUCH, key_mask)){
-                    if (print_flags & PRINT_ALL)
-                        fprintf(stderr, "Touch device detected...\n");
-                    dev_ids[ID_TOUCHSCREEN] = nfds;
+    if ((is_recognized == 0) && (classes & DEV_TOUCHSCREEN)){
+        if ((test__bit(ABS_MT_POSITION_X, abs_mask) && test__bit(ABS_MT_POSITION_Y, abs_mask)) 
+            || (test__bit(ABS_X, abs_mask) && test__bit(ABS_Y, abs_mask))){
+                if (test__bit(BTN_TOUCH, key_mask) && test__bit(INPUT_PROP_DIRECT, prop_mask)){
+                    print_all("'DEV_TOUCHSCREEN' detected...\n\n", NULL, 0, print_flags);
                     is_recognized |= 1;
                 }
         }  
     }
-    if (classes & DEV_VOLDOWN && test_bit(KEY_VOLUMEDOWN, key_mask)){
-        if (print_flags & PRINT_ALL)
-            fprintf(stderr, "Volume down button device detected...\n");
-        dev_ids[ID_VOLDOWN] = nfds;
+    if ((is_recognized == 0) && (classes & DEV_VOLDOWN) && test__bit(KEY_VOLUMEDOWN, key_mask)){
+        print_all("'DEV_VOLDOWN' detected...\n\n", NULL, 0, print_flags);
         is_recognized |= 1;
     }
-    if (classes & DEV_VOLUP && test_bit(KEY_VOLUMEUP, key_mask)){
-        if (print_flags & PRINT_ALL)
-            fprintf(stderr, "Volume up button device detected...\n");
-        dev_ids[ID_VOLUP] = nfds;
+    if ((is_recognized == 0) && (classes & DEV_VOLUP) && test__bit(KEY_VOLUMEUP, key_mask)){
+        print_all("'DEV_VOLUP' detected...\n\n", NULL, 0, print_flags);
         is_recognized |= 1;
     }
-    if (classes & DEV_ANY){
-        if (print_flags & PRINT_ALL)
-            fprintf(stderr, "Device detected...\n");
-        dev_ids[ID_ANY] = nfds;
+    if ((is_recognized == 0) && (classes & DEV_POWERBTN) && test__bit(KEY_POWER, key_mask)){
+        print_all("'DEV_POWERBTN' detected...\n\n", NULL, 0, print_flags);
         is_recognized |= 1;
     }
 
     if (is_recognized & 1){
-        if (print_flags & PRINT_ALL)
-            fprintf(stderr, "Stored device count: %d. Storing detected device...\n", nfds);
+        print_all("Storing detected device...\n", NULL, 0, print_flags);
         pfds = realloc(pfds, sizeof(struct pollfd) * (nfds + 1));
         pfds[nfds].fd = fd;
         pfds[nfds].events = POLLIN;
+        if (classes & DEV_BLOCKING)
+            dev_ids[ID_BLOCKING] = nfds;
+
+        if (classes & DEV_TRIGGER)
+            dev_ids[ID_TRIGGER] = nfds;
+
         nfds++;
         return 0;
     }
 
+    print_all("Closing device...\n", NULL, 0, print_flags);
     close(fd);
     return 1;
 }
@@ -134,12 +164,10 @@ static int open_device(const char *device, uint8_t classes, uint8_t print_flags)
 static void close_devices(uint8_t print_flags)
 {
     int i;
-    if (print_flags & PRINT_ALL)
-                fprintf(stderr, "Total device: %d\n", nfds);
+    print_all("Opened devices: %d\n", NULL, nfds, print_flags);
     for(i = 0; i < nfds; i++) {
         if(pfds[i].fd >= 0){
-            if (print_flags & PRINT_ALL)
-                fprintf(stderr, "%d.device closing...\n", i);
+            print_all("%d.device closing...\n", NULL, i, print_flags);
             close(pfds[i].fd);
             free(&pfds[i]);
         }
@@ -166,9 +194,9 @@ static int scan_devices(uint8_t classes, uint8_t print_flags)
         devname[6] = dp->d_name[6];
         devname[7] = dp->d_name[7];
 
-        snprintf(devloc, 24, "%s/%s", DEV_DIR, devname);
-        if (print_flags & PRINT_ALL)
-            fprintf(stderr, "Found device: '%s'. Opening...\n", devloc);
+        snprintf(devloc, sizeof(devloc), "%s/%s", DEV_DIR, devname);
+
+        print_all("'%s' found. Opening...\n", devloc, 0, print_flags);
         if (open_device(devloc, classes, print_flags) == 0) 
             temp &= temp - 1; //See brian kernighan's bit counting algorithm.
         if (temp == 0) break;
@@ -183,7 +211,8 @@ static void usage(char *name)
     fprintf(stderr, "Usage: %s [-t] [-d input device] [-s trigger] [-v level]\n", name);
     fprintf(stderr, "    -t: block touch screen.\n");
     fprintf(stderr, "    -d: block input device.Format:'/dev/input/eventX'. Use 'getevent' to find eventX.\n");
-    fprintf(stderr, "    -s: stop trigger (Volume Down='v_dwn', Volume Up='v_up')\n");
+    fprintf(stderr, "    -s: stop trigger.(Power Button='pwr', Volume Down='v_dwn', Volume Up='v_up')\n");
+    fprintf(stderr, "                     (Custom Trigger='/dev/input/eventX:KEYCODE'.See 'input-event-codes.h')\n");
     fprintf(stderr, "    -v: verbosity level (Errors=1, None=2, All=4)\n");
     fprintf(stderr, "    -h: print help.\n");
     fprintf(stderr, "\nblockevent for Android v%s.%s.%s\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
@@ -193,15 +222,16 @@ static void usage(char *name)
 int main(int argc, char *argv[])
 {   
     int c;
-    int res;
+    int res, res_tgr;
     uint8_t flags = 0;
     uint8_t classes = 0;
     uint8_t trigger_device;
     uint8_t blocking_device;
     uint8_t print_flags = 0;
+    __u16 trigger_event;
     struct input_event event;
     const char *device = NULL;
-    const char *trigger = NULL;
+    char *trigger_dev = NULL;
 
     opterr = 0;
     do{
@@ -210,17 +240,15 @@ int main(int argc, char *argv[])
             break;
         switch (c){
         case 't':
-            classes |= DEV_TOUCHSCREEN;
+            classes |= DEV_TOUCHSCREEN | DEV_BLOCKING;
             flags |= ST_SCAN;
-            blocking_device = ID_TOUCHSCREEN;
             break;
         case 'd':
             device = optarg;
-            blocking_device = ID_ANY;
             break;
         case 's':
-            flags |= ST_TRIGGER;
-            trigger = optarg;
+            flags |= ST_TRIGGER | DEV_TRIGGER;
+            trigger_dev = optarg;
             break;
         case 'v':
             print_flags |= strtoul(optarg, NULL, 0);
@@ -252,70 +280,74 @@ int main(int argc, char *argv[])
     signal(SIGINT, sig_handler);
 
     if (flags & ST_TRIGGER){
-        if (print_flags & PRINT_ALL)
-            fprintf(stderr, "Trigger: %s\n", trigger);
-        if (strcmp(trigger, "v_dwn") == 0){
+        print_all("'%s' : stop trigger.\n", trigger_dev, 0, print_flags);
+        if (strcmp(trigger_dev, "v_dwn") == 0){
             classes |= DEV_VOLDOWN;
             flags |= ST_SCAN;
-            trigger_device = ID_VOLDOWN;
-        }else if (strcmp(trigger, "v_up") == 0){
+            trigger_event = KEY_VOLUMEDOWN;
+        }else if (strcmp(trigger_dev, "v_up") == 0){
             classes |= DEV_VOLUP;
             flags |= ST_SCAN;
-            trigger_device = ID_VOLUP;
+            trigger_event = KEY_VOLUMEUP;
+        }else if (strcmp(trigger_dev, "pwr") == 0){
+            classes |= DEV_POWERBTN;
+            flags |= ST_SCAN;
+            trigger_event = KEY_POWER;
         }else{
-            if (print_flags & (PRINT_ERR | PRINT_ALL))
-                fprintf(stderr, "Invalid trigger.Aborted.\n");
-            return -1;
+            trigger_dev = strtok(trigger_dev, ":");
+            trigger_event = atoi(strtok(NULL, trigger_dev));
+            print_all("'%s': dev", trigger_dev, 0, print_flags);
+            print_all(" '%d': event code\n", NULL, trigger_event, print_flags);
+            flags |= ST_CUSTOM_TRIGGER; 
         }
     }
 
+    if (flags & ST_CUSTOM_TRIGGER){
+        res_tgr = open_device(trigger_dev, DEV_ANY|DEV_TRIGGER, print_flags);
+            if (res_tgr < 0){
+                print_err("'%s': failed to open.\n", trigger_dev, 0, print_flags);
+                return -1;
+            }
+    }
+
     if (flags & ST_SCAN){
-        if (print_flags & PRINT_ALL)
-            fprintf(stderr, "Scanning for devices...\n");
+        print_all("Scanning for devices...\n", NULL, 0, print_flags);
         res = scan_devices(classes, print_flags);
         if (res < 0){
-            if (print_flags & (PRINT_ERR | PRINT_ALL))
-                fprintf(stderr, "Device scan failed in %s.\n", DEV_DIR);
+            print_err("Device scan failed in %s.\n", DEV_DIR, 0, print_flags);
             return -1;
         }
     }
 
     if (device){
-        res = open_device(device, DEV_ANY, print_flags);
+        res = open_device(device, DEV_ANY|DEV_BLOCKING, print_flags);
         if (res < 0)
             return -1;
     }
 
-    blocking_device = dev_ids[blocking_device];
+    blocking_device = dev_ids[ID_BLOCKING];
     
-    if (print_flags & PRINT_ALL){
-        fprintf(stderr, "Found device: %d\n", nfds);
-        fprintf(stderr, "Blocking...\n");
-    }
+    print_all("Opened device count: %d\nBlocking device...\n", NULL, nfds, print_flags);
     
     if (&pfds[blocking_device] == NULL){
-        if (print_flags & (PRINT_ERR | PRINT_ALL))
-                fprintf(stderr, "No device found to block. Exit.\n");
+        print_err("No device found to block. Exit.\n", NULL, 0, print_flags);
         return 1;
     }
 
     if (ioctl(pfds[blocking_device].fd, EVIOCGRAB, 1) < 0){
-        if (print_flags & (PRINT_ERR | PRINT_ALL))
-                fprintf(stderr, "Couldn't get exclusive access.Blocking aborted.\n");
+        print_err("Couldn't get exclusive access.Blocking aborted.\n", NULL, 0, print_flags);
         close_devices(print_flags);
         return -1;
     }
     
     if ((flags & ST_TRIGGER) == 0){
-        if (print_flags & PRINT_ALL)
-            fprintf(stderr, "Pausing...\n");
+        print_all("Pausing...\n", NULL, 0, print_flags);
         pause();
     }
 
     if (flags & ST_TRIGGER){
-        if (print_flags & PRINT_ALL)
-            fprintf(stderr, "Listening for a stop trigger...\n");
-        trigger_device = dev_ids[trigger_device];
+        print_all("Stop trigger : listening...\n", NULL, 0, print_flags);
+        trigger_device = dev_ids[ID_TRIGGER];
         while(1){
             if (e_flag) break;
             poll(&pfds[trigger_device], 1, -1); //Polling the trigger device only.
@@ -323,30 +355,25 @@ int main(int argc, char *argv[])
                 if(pfds[trigger_device].revents & POLLIN){
                     res = read(pfds[trigger_device].fd, &event, sizeof(event));
                     if(res < (int)sizeof(event)){
-                        if (print_flags & (PRINT_ERR | PRINT_ALL))
-                            fprintf(stderr, "Couldn't get event for trigger device.\n");
+                        print_err("Couldn't get event for trigger device.\n", NULL, 0, print_flags);
                         return 1;
                     }
-                    if (print_flags & PRINT_ALL)
-                        fprintf(stderr, "Dev: [%d] Event: Type[%d] Code[%d] Value[%d]\n", 
-                            trigger_device, event.type, event.code, event.value);
-                    
-                    if (event.code == KEY_VOLUMEUP || event.code == KEY_VOLUMEDOWN){
+
+                    if (event.code == trigger_event)
                         e_flag = 1;
-                        if (print_flags & PRINT_ALL)
-                            fprintf(stderr, "Volume key report detected.Stop listening...\n");
-                    }
+
+                    if (print_flags & PRINT_ALL)
+                        print_event(&event, trigger_device);
                 }
             }
         }
+        print_all("Stop trigger : listening finished.\n", NULL, 0, print_flags);
     }
 
-    if (print_flags & PRINT_ALL)
-        fprintf(stderr, "Releasing...\n");
+    print_all("Releasing device...\n", NULL, 0, print_flags);
     ioctl(pfds[blocking_device].fd, EVIOCGRAB, 0);
     close_devices(print_flags);
-    if (print_flags & PRINT_ALL)
-        fprintf(stderr, "Exiting...\n");
+    print_all("Exiting...\n", NULL, 0, print_flags);
     return 0;
 }
 

@@ -32,7 +32,8 @@ Can be used:
 Usage: ./blockevent [-t] [-d input device] [-s trigger] [-v level]
     -t: block touch screen.
     -d: block input device.Format:'/dev/input/eventX'. Use 'getevent' to find eventX.
-    -s: stop trigger (Volume Down='v_dwn', Volume Up='v_up')
+    -s: stop trigger.(Power Button='pwr', Volume Down='v_dwn', Volume Up='v_up')
+                     (Custom Trigger='/dev/input/eventX:KEYCODE'.See 'input-event-codes.h')
     -v: verbosity level (Errors=1, None=2, All=4)
     -h: print help.
 ```
@@ -113,8 +114,12 @@ bazel build //src:blockevent --config=TARGET
 
 ## TODO
 
+> *This section will be removed after version 1.x.x*
+
 - [x] Add specific event trigger option to stop blocking
 - [x] Add touch device classifier to able to block touchscreen without getting device from the user.
 - [ ] Add option to block multiple devices at the same time.
 - [ ] Add installation script
 - [ ] Add option to block only specific part of touchscreen 
+- [x] Add custom stop triggers.
+- [ ] Change device blocking behavior to event blocking behavior. Some devices has a single device for volume and power button events. New behavior will provide a filtered blocking mechanism.
