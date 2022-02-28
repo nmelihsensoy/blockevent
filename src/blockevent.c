@@ -1,5 +1,5 @@
 /*
-blockevent.c - blockevent for Android v0.4.0
+blockevent.c - blockevent for Android v0.4.1
 
 Copyright 2022 N. Melih Sensoy
 
@@ -31,7 +31,7 @@ limitations under the License.
 
 #define VERSION_MAJOR "0"
 #define VERSION_MINOR "4"
-#define VERSION_PATCH "0"
+#define VERSION_PATCH "1"
 
 #define DEV_DIR "/dev/input"
 
@@ -228,10 +228,11 @@ int main(int argc, char *argv[])
     uint8_t trigger_device;
     uint8_t blocking_device;
     uint8_t print_flags = 0;
-    __u16 trigger_event;
+    uint16_t trigger_event;
     struct input_event event;
     const char *device = NULL;
     char *trigger_dev = NULL;
+    char *event_tmp = NULL;
 
     opterr = 0;
     do{
@@ -295,7 +296,12 @@ int main(int argc, char *argv[])
             trigger_event = KEY_POWER;
         }else{
             trigger_dev = strtok(trigger_dev, ":");
-            trigger_event = atoi(strtok(NULL, trigger_dev));
+            event_tmp = strtok(NULL, ":");
+            if (event_tmp == NULL){
+                print_err("Event code can't be empty.\n", NULL, 0, print_flags);
+                return -1;
+            } 
+            trigger_event = atoi(event_tmp);  
             print_all("'%s': dev", trigger_dev, 0, print_flags);
             print_all(" '%d': event code\n", NULL, trigger_event, print_flags);
             flags |= ST_CUSTOM_TRIGGER; 
