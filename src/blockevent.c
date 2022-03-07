@@ -31,7 +31,7 @@ limitations under the License.
 
 #define VERSION_MAJOR "0"
 #define VERSION_MINOR "4"
-#define VERSION_PATCH "1"
+#define VERSION_PATCH "2"
 
 #define DEV_DIR "/dev/input"
 
@@ -128,17 +128,20 @@ static int open_device(const char *device, uint8_t classes, uint8_t print_flags)
                 }
         }  
     }
-    if ((is_recognized == 0) && (classes & DEV_VOLDOWN) && test__bit(KEY_VOLUMEDOWN, key_mask)){
-        print_all("'DEV_VOLDOWN' detected...\n\n", NULL, 0, print_flags);
-        is_recognized |= 1;
-    }
-    if ((is_recognized == 0) && (classes & DEV_VOLUP) && test__bit(KEY_VOLUMEUP, key_mask)){
-        print_all("'DEV_VOLUP' detected...\n\n", NULL, 0, print_flags);
-        is_recognized |= 1;
-    }
-    if ((is_recognized == 0) && (classes & DEV_POWERBTN) && test__bit(KEY_POWER, key_mask)){
-        print_all("'DEV_POWERBTN' detected...\n\n", NULL, 0, print_flags);
-        is_recognized |= 1;
+
+    if ((is_recognized == 0) && !test__bit(KEY_MEDIA, key_mask)){    
+        if ((is_recognized == 0) && (classes & DEV_VOLDOWN) && test__bit(KEY_VOLUMEDOWN, key_mask)){
+            print_all("'DEV_VOLDOWN' detected...\n\n", NULL, 0, print_flags);
+            is_recognized |= 1;
+        }
+        if ((is_recognized == 0) && (classes & DEV_VOLUP) && test__bit(KEY_VOLUMEUP, key_mask)){
+            print_all("'DEV_VOLUP' detected...\n\n", NULL, 0, print_flags);
+            is_recognized |= 1;
+        }
+        if ((is_recognized == 0) && (classes & DEV_POWERBTN) && test__bit(KEY_POWER, key_mask)){
+            print_all("'DEV_POWERBTN' detected...\n\n", NULL, 0, print_flags);
+            is_recognized |= 1;
+        }
     }
 
     if (is_recognized & 1){
