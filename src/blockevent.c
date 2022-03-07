@@ -1,5 +1,5 @@
 /*
-blockevent.c - blockevent for Android v0.4.1
+blockevent.c - blockevent for Android v0.4.3
 
 Copyright 2022 N. Melih Sensoy
 
@@ -31,7 +31,7 @@ limitations under the License.
 
 #define VERSION_MAJOR "0"
 #define VERSION_MINOR "4"
-#define VERSION_PATCH "2"
+#define VERSION_PATCH "3"
 
 #define DEV_DIR "/dev/input"
 
@@ -172,10 +172,11 @@ static void close_devices(uint8_t print_flags)
         if(pfds[i].fd >= 0){
             print_all("%d.device closing...\n", NULL, i, print_flags);
             close(pfds[i].fd);
-            free(&pfds[i]);
         }
     }
-    free(pfds);
+    if (pfds != NULL){
+        free(pfds);
+    }
 }
 
 static int scan_devices(uint8_t classes, uint8_t print_flags)
