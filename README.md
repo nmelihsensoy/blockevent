@@ -29,12 +29,24 @@ Can be used:
 ## Usage
 
 ```
-Usage: ./blockevent [-t] [-d input device] [-s trigger] [-v level]
-    -t: block touch screen.
-    -d: block input device.Format:'/dev/input/eventX'. Use 'getevent' to find eventX.
-    -s: stop trigger.(Power Button='pwr', Volume Down='v_dwn', Volume Up='v_up')
-                     (Custom Trigger='/dev/input/eventX:KEYCODE'.See 'input-event-codes.h')
-    -v: verbosity level (Errors=1, None=2, All=4)
+Usage: ./blockevent -d device... [-s trigger] [-v level] [-r x1,y1,x2,y2...] [-R ] [-W width] [-H height]
+    -d: blocking device. Preset device id or a path specified device.
+        Preset devices (0=Touchscreen, 1=Volume Down, 2=Volume Up, 3=Power Button)
+        Specific device (/dev/input/eventX)
+
+    -s: stop trigger.Preset device or a device specified event.
+        Preset devices (0=Area Button, 1=Volume Down, 2=Volume Up, 3=Power Button)
+        Specific event (/dev/input/eventX:<Type>,<Code>,<Value>)
+
+    -v: verbosity level.(Errors=1, None=2, All=4) (Default=1)
+    -r: rectangle.Comma seperated left bottom and right top corner point coordinates.
+        -d 0 -s (1-3) -r x1,y1,x2,y2 : specifies partly blocking rectangle on the touchscreen.
+        -d 0 -r x1,y1,x2,y2 -s 0 -r x1,y1,x2,y2 : specifies partly blocking.
+        -d (1-3) -s 0 -r x1,y1,x2,y2 : specifies area button's rectangle.
+
+    -R: reverse. Reverses blocking rectangle on the touchscreen.
+    -W: screen width.
+    -H: screen height.
     -h: print help.
 ```
 
@@ -44,33 +56,41 @@ Running on device :
 
 ```
 su # tsu for Termux
-cp blockevent_xxx /data/local/tmp/
-chmod +x /data/local/tmp/blockevent_xxx
-./data/local/tmp/blockevent_xxx
+cp blockevent_* /data/local/tmp/
+chmod +x /data/local/tmp/blockevent_*
+./data/local/tmp/blockevent_*
 ```
 
 Running with adb :
 
 ```
-adb push blockevent_xxx /data/local/tmp/
-adb shell su -c "chmod +x /data/local/tmp/blockevent_xxx"
-adb shell su -c /data/local/tmp/blockevent_xxx
+adb push blockevent_* /data/local/tmp/
+adb shell su -c "chmod +x /data/local/tmp/blockevent_*"
+adb shell su -c /data/local/tmp/blockevent_*
 ```
 
-Block touch screen (Block concept) :
+Block touch screen :
 
 ```
-> ./data/local/tmp/blockevent_xxx -t
-# Print all messages.
-> ./data/local/tmp/blockevent_xxx -t -v 4
+> ./data/local/tmp/blockevent_* -d 0
 ```
 
-Block touch screen until volume down button is pressed (Stop trigger concept) :
+Block left half of the touch screen:
 
 ```
-> ./data/local/tmp/blockevent_xxx -t -s v_dwn
-# Print errors.
-> ./data/local/tmp/blockevent_xxx -t -s v_dwn -v 1
+> ./data/local/tmp/blockevent_* -d 0 -r 0,2400,540,0 -W 1080 -H 2400
+```
+
+Block touch screen and stop blocking when volume down button is pressed:
+
+```
+> ./data/local/tmp/blockevent_* -d 0 -s 1
+```
+
+Block touch screen and stop blocking when rectangle area is double tapped.
+
+```
+> ./data/local/tmp/blockevent_* -d 0 -s 0 -r 400,1100,750,800 -W 1080 -H 2400
 ```
 
 Block other devices :
@@ -79,9 +99,9 @@ Block other devices :
 > getevent -lp
 add device 3: /dev/input/event6
   name:     "atoll-wcd937x-snd-card Headset Jack"
-  ...
+  [...]
 
-> ./data/local/tmp/blockevent_xxx -d /dev/input/event6
+> ./data/local/tmp/blockevent_* -d /dev/input/event6
 ```
 
 ## Build
@@ -102,8 +122,8 @@ Using the `release.sh` script:
 > ./release.sh
 
 4 build completed successfully (Total: 4)
-releases/blockevent_arm: ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), dynamically linked, interpreter /system/bin/linker, with debug_info, not stripped
-...
+releases/blockevent_arm: ELF 32-bit LSB shared object, ARM, EABI5 version 1 (SYSV), dynamically linked, interpreter /system/bin/linker, with debug_info, not stripped
+[...]
 ```
 
 Build for the specific target:
@@ -118,8 +138,8 @@ bazel build //src:blockevent --config=TARGET
 
 - [x] Add specific event trigger option to stop blocking
 - [x] Add touch device classifier to able to block touchscreen without getting device from the user.
-- [ ] Add option to block multiple devices at the same time.
+- [x] Add option to block multiple devices at the same time.
 - [ ] Add installation script
-- [ ] Add option to block only specific part of touchscreen 
+- [x] Add option to block only specific part of touchscreen 
 - [x] Add custom stop triggers.
-- [ ] Change device blocking behavior to event blocking behavior. Some devices has a single device for volume and power button events. New behavior will provide a filtered blocking mechanism.
+- [ ] [Done for touchscreen] Change device blocking behavior to event blocking behavior. Some devices has a single device for volume and power button events. New behavior will provide a filtered blocking mechanism.
