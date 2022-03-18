@@ -1,5 +1,5 @@
 /*
-blockevent.c - blockevent for Android v0.4.5
+blockevent.c - blockevent for Android v0.4.6
 
 Copyright 2022 N. Melih Sensoy
 
@@ -30,7 +30,7 @@ limitations under the License.
 #include <stdbool.h>
 #include <linux/uinput.h>
 
-#define VERSION "0.4.5"
+#define VERSION "0.4.6"
 #define DEV_DIR "/dev/input"
 #define VIRTUAL_DEV_LOC "/dev/uinput"
 #define VIRTUAL_DEV_NAME "blockevent-"VERSION"_virtual_dev"
@@ -403,6 +403,10 @@ static int scan_devices(uint8_t classes, uint8_t print_flags)
     }
     free(devname);
     closedir(dir);
+
+    if (temp != 0 && classes != 0) 
+        return temp;
+
     return 0;
 }
 
@@ -626,6 +630,9 @@ int main(int argc, char *argv[])
         res = scan_devices(classes, print_flags);
         if (res < 0){
             print_err("[ERR] Failed to open '%s'.\n", DEV_DIR, 0, print_flags);
+            return 1;
+        }else if(res > 0){
+            print_err("[ERR] Scan couldn't find all devices. Mising device flag:'%d'.\n", NULL, res, print_flags);
             return 1;
         }
     }

@@ -21,9 +21,9 @@ if [ $# -gt 1 ]; then
     exit 1
 elif [ $# -eq 1 ]; then
     [[ "$1" =~ ^v?(([0-9]{1,2})\.([0-9])(\.([0-9]))?)$ ]] && version="_${1#v}" || \
-        >&2 echo "Invalid Version: '$1'. Build starting versionless." 
+        >&2 echo "Invalid Version: '$1'. Started versionless." 
 else
-    echo "Build starting versionless." 
+    echo "Build started versionless." 
 fi
 
 for app in ${apps[@]}; do
@@ -45,7 +45,7 @@ for app in ${apps[@]}; do
     done
 done
 
-echo "${#output_files[@]} build completed successfully (Total: `expr ${#apps[@]} \* ${#archs[@]}`)"
+echo "${#output_files[@]}/`expr ${#apps[@]} \* ${#archs[@]}` completed successfully."
 for out in ${output_files[@]}; do
     file $out
 done
