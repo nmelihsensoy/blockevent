@@ -9,7 +9,7 @@
 
 # Linker output
 *.ilk
-*.map
+#*.map # commented out for svelte
 *.exp
 
 # Precompiled Headers
